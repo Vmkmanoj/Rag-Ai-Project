@@ -8,6 +8,7 @@ import {
   ChevronDown, Star, Clock, ExternalLink, AlignLeft,
   ChevronLeft, RotateCcw, ThumbsUp, ThumbsDown, Share2
 } from "lucide-react";
+import VoiceAgent from "./VoiceAgent";
 
 /* ── helpers ──────────────────────────────────────────────────────────────── */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -129,6 +130,7 @@ function UploadModal({ onClose, onDone }) {
     const formData = new FormData();
     
     formData.append("file", f);
+    formData.append("userId", localStorage.getItem("userId"));
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${API_BASE}/upload`);
@@ -433,7 +435,7 @@ function EmptyChat({ pdf, onSuggest }) {
 }
 
 /* ── Welcome screen ───────────────────────────────────────────────────────── */
-function Welcome({ onNew }) {
+function Welcome({ onNew, onNavigate }) {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center" }}>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
@@ -446,13 +448,23 @@ function Welcome({ onNew }) {
         <p style={{ margin: "0 0 32px", fontSize: "0.9rem", color: "#6b7280", maxWidth: 360, lineHeight: 1.7 }}>
           Upload any document and ask questions. Get instant, accurate answers powered by AI retrieval.
         </p>
-        <motion.button onClick={onNew} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-          style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "12px 24px", borderRadius: 10, background: "#e5e7eb", border: "none", color: "#111", fontSize: "0.875rem", fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>
-          <Upload size={16} />
-          Upload PDF to get started
-        </motion.button>
+        <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap", marginBottom: 24 }}>
+          <motion.button onClick={onNew} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "12px 24px", borderRadius: 10, background: "#e5e7eb", border: "none", color: "#111", fontSize: "0.875rem", fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>
+            <Upload size={16} />
+            Upload PDF to get started
+          </motion.button>
+          <motion.button onClick={() => onNavigate("/login")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "12px 24px", borderRadius: 10, background: "#111", border: "1px solid #232323", color: "#e5e7eb", fontSize: "0.875rem", fontWeight: 600, cursor: "pointer" }}>
+            Log in
+          </motion.button>
+          <motion.button onClick={() => onNavigate("/signup")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "12px 24px", borderRadius: 10, background: "#161616", border: "1px solid #232323", color: "#9ca3af", fontSize: "0.875rem", fontWeight: 600, cursor: "pointer" }}>
+            Sign up
+          </motion.button>
+        </div>
 
-        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 32, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 0, flexWrap: "wrap" }}>
           {[["Semantic search", Brain], ["Cited answers", BookOpen], ["Instant results", Sparkles]].map(([label, Icon]) => (
             <motion.div key={label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
               style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 8, border: "1px solid #1f1f1f", background: "#141414", fontSize: "0.75rem", color: "#6b7280" }}>
@@ -461,6 +473,130 @@ function Welcome({ onNew }) {
           ))}
         </div>
       </motion.div>
+    </div>
+  );
+}
+
+function AuthPage({ mode, onNavigate }) {
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const isSignup = mode === "signup";
+  const title = isSignup ? "Create your account" : "Welcome back";
+  const description = isSignup
+    ? "Sign up to start using RAGchat with your own documents."
+    : "Log in to continue where you left off.";
+  const buttonLabel = isSignup ? "Sign up" : "Log in";
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setStatus(null);
+
+    if (isSignup && password !== confirmPassword) {
+      setStatus({ type: "error", message: "Passwords do not match." });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/${mode}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, email, password }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setStatus({ type: "error", message: data.detail || data.message || "Unable to complete request." });
+        return;
+      }
+
+      if (data.userId || data.id || data.user?.id || data.user_id) {
+        const savedId = data.userId || data.id || data.user?.id || data.user_id;
+        localStorage.setItem("userId", savedId);
+        localStorage.setItem("email", email);
+        localStorage.setItem("username", data.user.username);
+        sessionStorage.setItem("token",data.access_token)
+      }
+
+      setStatus({ type: "success", message: `${isSignup ? "Signup" : "Login"} successful! Redirecting...` });
+      window.setTimeout(() => onNavigate("/"), 1200);
+    } catch (error) {
+      setStatus({ type: "error", message: error?.message || "Network error." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0a", padding: "24px" }}>
+      <div style={{ width: "100%", maxWidth: 420, borderRadius: 24, border: "1px solid #1a1a1a", background: "#111", padding: "32px 28px", color: "#e5e7eb" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "1.8rem", fontWeight: 700, color: "#f3f4f6" }}>{title}</h1>
+            <p style={{ margin: "8px 0 0", color: "#9ca3af", fontSize: "0.92rem", lineHeight: 1.6 }}>{description}</p>
+          </div>
+          <div style={{ width: 44, height: 44, borderRadius: 14, background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Brain size={22} color="#9ca3af" />
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 14 }}>
+          {isSignup && (
+            <label style={{ display: "grid", gap: 6, fontSize: "0.85rem", color: "#d1d5db" }}>
+              Name
+              <input required value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Your full name"
+                style={{ width: "100%", borderRadius: 14, border: "1px solid #232323", background: "#121212", color: "#e5e7eb", padding: "12px 14px", fontSize: "0.95rem" }} />
+            </label>
+          )}
+
+          <label style={{ display: "grid", gap: 6, fontSize: "0.85rem", color: "#d1d5db" }}>
+            Email address
+            <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com"
+              style={{ width: "100%", borderRadius: 14, border: "1px solid #232323", background: "#121212", color: "#e5e7eb", padding: "12px 14px", fontSize: "0.95rem" }} />
+          </label>
+
+          <label style={{ display: "grid", gap: 6, fontSize: "0.85rem", color: "#d1d5db" }}>
+            Password
+            <input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password"
+              style={{ width: "100%", borderRadius: 14, border: "1px solid #232323", background: "#121212", color: "#e5e7eb", padding: "12px 14px", fontSize: "0.95rem" }} />
+          </label>
+
+          {isSignup && (
+            <label style={{ display: "grid", gap: 6, fontSize: "0.85rem", color: "#d1d5db" }}>
+              Confirm password
+              <input required type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Repeat your password"
+                style={{ width: "100%", borderRadius: 14, border: "1px solid #232323", background: "#121212", color: "#e5e7eb", padding: "12px 14px", fontSize: "0.95rem" }} />
+            </label>
+          )}
+
+          {status && (
+            <div style={{ padding: "12px 14px", borderRadius: 12, background: status.type === "error" ? "#31171f" : "#142f1e", color: status.type === "error" ? "#fca5a5" : "#86efac", fontSize: "0.88rem" }}>
+              {status.message}
+            </div>
+          )}
+
+          <button type="submit" disabled={loading}
+            style={{ width: "100%", padding: "14px 16px", borderRadius: 14, border: "none", background: "#e5e7eb", color: "#111", fontWeight: 700, fontSize: "0.95rem", cursor: loading ? "not-allowed" : "pointer" }}>
+            {loading ? "Processing..." : buttonLabel}
+          </button>
+        </form>
+
+        <div style={{ marginTop: 20, display: "flex", justifyContent: "space-between", gap: 12, fontSize: "0.92rem", color: "#9ca3af" }}>
+          <button type="button" onClick={() => onNavigate("/")}
+            style={{ flex: 1, padding: "12px 14px", borderRadius: 14, border: "1px solid #232323", background: "#111", color: "#9ca3af", cursor: "pointer" }}>
+            Back to home
+          </button>
+          <button type="button" onClick={() => onNavigate(isSignup ? "/login" : "/signup")}
+            style={{ flex: 1, padding: "12px 14px", borderRadius: 14, border: "1px solid #232323", background: "#161616", color: "#e5e7eb", cursor: "pointer" }}>
+            {isSignup ? "Already have account" : "Create account"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -482,6 +618,31 @@ function App() {
   const ridx = useRef(0);
   const [history, setHistory] = useState([]);
   const [transcripts, setTranscripts] = useState([]);
+  const [route, setRoute] = useState(window.location.pathname || "/");
+
+  useEffect(() => {
+    const onPop = () => setRoute(window.location.pathname || "/");
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  const navigate = (path) => {
+    window.history.pushState({}, "", path);
+    setRoute(path);
+  };
+
+  const handleLogout = () => {
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {
+      console.warn("logout clear error", e);
+    }
+    setPdf(null);
+    setMsgs([]);
+    setHistory([]);
+    navigate("/login");
+  };
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, typing]);
 
@@ -498,6 +659,7 @@ function App() {
     const response = await fetch(`${API_BASE}/createnewsession`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: localStorage.getItem("userId") })
     });
 
     if (!response.ok) {
@@ -527,14 +689,16 @@ function App() {
     ]);
   };
 
+
+
+
 useEffect(() => {
 
     const fetchData = async () => {
-
         try {
 
             const response = await fetch(
-                `${API_BASE}/getAllSessions`
+                `${API_BASE}/getAllSessions/${localStorage.getItem("userId")}`
             );
 
             const data = await response.json();
@@ -567,7 +731,7 @@ useEffect(() => {
 
   const getSessionHistory = async (sessionId) => {
     try {
-      const response = await fetch(`${API_BASE}/getSessionHistory/${sessionId}`);
+      const response = await fetch(`${API_BASE}/getSessionHistory/${localStorage.getItem("userId")}/${sessionId}`);
       const data = await response.json();
       const historyItems = Array.isArray(data) ? data : [];
       setTranscripts(historyItems);
@@ -640,6 +804,10 @@ useEffect(() => {
   };
 
   const onKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
+
+  if (route === "/login" || route === "/signup") {
+    return <AuthPage mode={route.slice(1)} onNavigate={navigate} />;
+  }
 
   return (
     <>
@@ -769,10 +937,18 @@ useEffect(() => {
                     <User size={13} color="#9ca3af" />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: "0.78rem", color: "#d1d5db", fontWeight: 500, margin: 0 }}>Alex Mercer</p>
+                    <p style={{ fontSize: "0.78rem", color: "#d1d5db", fontWeight: 500, margin: 0 }}>{localStorage.getItem("username") || "User"}</p>
                     <p style={{ fontSize: "0.67rem", color: "#4b5563", margin: 0 }}>Free plan</p>
+                    <p style={{ fontSize: "0.67rem", color: "#4b5563", margin: 0 }} onClick={()=>setScreen("voiceAgent")} >
+                      Voice Agent
+                    </p>
                   </div>
                   <Settings size={13} color="#374151" />
+                </div>
+                <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+                  <button onClick={handleLogout} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: "1px solid #232323", background: "#111", color: "#e5e7eb", cursor: "pointer" }}>
+                    Logout
+                  </button>
                 </div>
               </div>
             </motion.aside>
@@ -836,7 +1012,7 @@ useEffect(() => {
               {screen === "welcome" ? (
                 <motion.div key="w" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                   style={{ flex: 1, display: "flex" }}>
-                  <Welcome onNew={() => setModal("choose")} />
+                  <Welcome onNew={() => setModal("choose")} onNavigate={navigate} />
                 </motion.div>
               ) : (
                 <motion.div key="c" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -894,6 +1070,11 @@ useEffect(() => {
                 </motion.div>
               )}
             </AnimatePresence>
+          </div>
+          <div>
+              {screen === "voiceAgent" && (
+                <VoiceAgent onBack={() => setScreen("welcome")} />
+              )}
           </div>
         </div>
       </div>

@@ -32,9 +32,16 @@ class SessionTable(Base):
 
     title = Column(String)
 
+    user_id = Column(Integer, ForeignKey("usersForChatApp.id"))
+
     created_at = Column(
         DateTime,
         default=datetime.utcnow
+    )
+
+    user = relationship(
+        "UserForChatApp",
+        back_populates="sessions"
     )
 
     # Relationship
@@ -79,4 +86,21 @@ class Message(Base):
     session = relationship(
         "SessionTable",
         back_populates="messages"
+    )
+
+class UserForChatApp(Base):
+
+    __tablename__ = "usersForChatApp"
+
+    id = Column(
+        Integer,primary_key=True,
+        index=True)
+    
+    username = Column(String(100), nullable=False)
+    email = Column(String(255), unique=True, nullable=False)
+    password = Column(String(255), nullable=False)
+
+    sessions = relationship(
+        "SessionTable",
+        back_populates="user"
     )

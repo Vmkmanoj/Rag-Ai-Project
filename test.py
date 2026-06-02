@@ -1,73 +1,31 @@
-import queue
-import numpy as np
-import sounddevice as sd
-from faster_whisper import WhisperModel
+from tavily import TavilyClient
+import ollama
 
-# -----------------------------
-# Load Whisper Model
-# -----------------------------
+tavily = TavilyClient(api_key="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")
 
-model = WhisperModel(
-    "base",
-    device="cpu",
-    compute_type="int8"
+query = "best sunscreens for dry skin"
+
+results = tavily.search(
+    query=query,
+    max_results=5
 )
 
-# -----------------------------
-# Audio Queue
-# -----------------------------
+response = ollama.chat(
+    model="mistral",
+    messages=[
+        {
+            "role": "user",
+            "content": f"""
+            Based on these search results:
 
-audio_queue = queue.Queue()
+            {results}
 
-samplerate = 16000
-block_duration = 3  # seconds
+            Recommend the top 3 products.
+            and aslo suggest the best one among them and explain why it is the best.
+            show product name, price and link to buy it.
+            """
+        }
+    ]
+)
 
-# -----------------------------
-# Audio Callback
-# -----------------------------
-
-def callback(indata, frames, time, status):
-    audio_queue.put(indata.copy())
-
-# -----------------------------
-# Start Microphone Stream
-# -----------------------------
-
-print("Listening... Speak now.")
-
-with sd.InputStream(
-    samplerate=samplerate,
-    channels=1,
-    dtype="float32",
-    callback=callback
-):
-
-    audio_buffer = np.empty((0, 1), dtype=np.float32)
-
-    while True:
-
-        data = audio_queue.get()
-
-        audio_buffer = np.concatenate(
-            [audio_buffer, data]
-        )
-
-        # Process every few seconds
-        if len(audio_buffer) >= samplerate * block_duration:
-
-            audio_array = audio_buffer.flatten()
-
-            segments, info = model.transcribe(
-                audio_array,
-                beam_size=5,
-                language="en"
-            )
-
-            for segment in segments:
-                if(segment.text.strip() == "Exit now"):
-                    print("Exiting...")
-                    exit(0)
-                print(segment.text)
-
-            # Clear buffer
-            audio_buffer = np.empty((0, 1), dtype=np.float32)
+print(response["message"]["content"])
