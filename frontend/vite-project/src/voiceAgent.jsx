@@ -5,6 +5,54 @@ const STATES = {
     LISTENING: "listening",
 };
 
+
+// const speak = async (text) => {
+//     const VOICE_ID = "JBFqnCBsd6RMkjVDRZzb";
+
+// //   const response = await fetch(
+// //     `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
+// //     {
+// //       method: "POST",
+// //       headers: {
+// //         "xi-api-key": "sk_394223ed261c8b30d4e125b4b18d77c2db6e8a4427d51909",
+// //         "Content-Type": "application/json",
+// //       },
+// //       body: JSON.stringify({
+// //         text,
+// //         model_id: "eleven_multilingual_v2",
+// //       }),
+// //     }
+// //   );
+
+//   const response = await fetch("https://api.elevenlabs.io/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb", {
+//   method: "POST",
+//   headers: {
+//     "Accept": "audio/mpeg",
+//     "Content-Type": "application/json",
+//     "xi-api-key": "sk_394223ed261c8b30d4e125b4b18d77c2db6e8a4427d51909"
+//   },
+//   body: JSON.stringify({
+//     text, // Ensure this is not undefined or empty
+//     model_id: "eleven_monolingual_v1",
+//     voice_settings: {
+//       stability: 0.5,
+//       similarity_boost: 0.5
+//     }
+//   })
+// });
+
+//   const blob = await response.blob();
+//   const url = URL.createObjectURL(blob);
+
+//   const audio = new Audio(url);
+//   audio.play();
+// };
+
+const speak = (text) => {
+  const utterance = new SpeechSynthesisUtterance(text);
+  speechSynthesis.speak(utterance);
+};
+
 const BAR_COUNT = 18;
 const BASE_HEIGHTS = [18, 32, 26, 42, 14, 38, 28, 48, 20, 36, 16, 44, 30, 22, 40, 12, 34, 24];
 
@@ -100,7 +148,7 @@ if (
     silenceTimerRef.current = setTimeout(async () => {
         console.log("Sending:", transcriptRef.current);
 
-        await fetch("http://127.0.0.1:8000/transcribe", {
+      const respone = await fetch("http://127.0.0.1:8000/transcribe", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -111,7 +159,13 @@ if (
         });
 
         transcriptRef.current = "";
+        const result = await respone.json();
+        console.log("Response from backend:", result);
+        await speak(result.response);
     }, 2000);
+
+    
+
 }
         };
         socket.onerror = (error) => {

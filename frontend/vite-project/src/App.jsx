@@ -37,7 +37,6 @@ const CHAT_HISTORY = [
 
 
 
-
 const SUGGESTIONS = [
   "Summarise the key findings of this document",
   "What methodology was used in this research?",
